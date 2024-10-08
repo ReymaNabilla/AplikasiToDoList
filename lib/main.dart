@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 void main() {
   runApp(const MyApp());
@@ -20,7 +21,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Halaman Splash Screen yang muncul beberapa detik sebelum beranda
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -74,7 +74,6 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-// Halaman beranda dengan daftar tugas
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -83,8 +82,21 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // List to-do yang akan ditampilkan di halaman beranda
-  List<String> tasks = ['Mobile Programming'];
+  List<Map<String, dynamic>> tasks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Menambahkan tugas default untuk testing
+    tasks.add({
+      'title': 'Mobile Programming',
+      'details': 'Learn Flutter for mobile development.',
+      'date': DateTime(2024, 10, 10), // Menggunakan DateTime
+      'time': TimeOfDay(hour: 10, minute: 0), // Menggunakan TimeOfDay
+      'isChecked': false, // Status checkbox
+    });
+    _checkTaskStatus(); // Cek status tugas saat inisialisasi
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,24 +123,51 @@ class _HomePageState extends State<HomePage> {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16.0),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       decoration: BoxDecoration(
                         color: Colors.pink[100],
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Row(
-                        children: [
-                          Checkbox(
-                            value: index == 0 ? true : false,
-                            onChanged: (value) {
-                              setState(() {});
-                            },
+                      child: ExpansionTile(
+                        leading: Checkbox(
+                          value: tasks[index]['isChecked'], // Status checkbox
+                          onChanged: (value) {
+                            setState(() {
+                              tasks[index]['isChecked'] = value!;
+                            });
+                          },
+                        ),
+                        title: Text(
+                          tasks[index]['title']!,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
                           ),
-                          Text(
-                            tasks[index],
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                        ),
+                        subtitle: Text(
+                          '${DateFormat.yMd().format(tasks[index]['date'])} at ${tasks[index]['time']!.format(context)}',
+                        ),
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16.0),
+                            color: Colors.pink[50],
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    tasks[index]['details']!,
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete),
+                                  onPressed: () {
+                                    setState(() {
+                                      tasks.removeAt(index);
+                                    });
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -155,16 +194,40 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Navigasi ke halaman tambah tugas (akan diimplementasikan)
-  void _navigateToAddTaskScreen(BuildContext context) {
-    Navigator.push(
+  void _navigateToAddTaskScreen(BuildContext context) async {
+    final newTask = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const AddTaskPage()),
     );
+
+    if (newTask != null) {
+      setState(() {
+        tasks.add(newTask);
+      });
+      _checkTaskStatus(); // Periksa status setelah menambahkan tugas baru
+    }
+  }
+
+  // Fungsi untuk memeriksa status tugas
+  void _checkTaskStatus() {
+    final now = DateTime.now();
+    for (var task in tasks) {
+      DateTime taskDateTime = DateTime(
+        task['date'].year,
+        task['date'].month,
+        task['date'].day,
+        task['time'].hour,
+        task['time'].minute,
+      );
+
+      if (taskDateTime.isBefore(now)) {
+        task['isChecked'] = true; // Centang tugas jika sudah terlewat
+      }
+    }
   }
 }
 
-// Halaman tambah tugas (Make a To-Do List)
+// Halaman tambah tugas
 class AddTaskPage extends StatefulWidget {
   const AddTaskPage({super.key});
 
@@ -173,7 +236,10 @@ class AddTaskPage extends StatefulWidget {
 }
 
 class _AddTaskPageState extends State<AddTaskPage> {
-  final TextEditingController _taskController = TextEditingController();
+  final TextEditingController _taskTitleController = TextEditingController();
+  final TextEditingController _taskDetailsController = TextEditingController();
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
 
   @override
   Widget build(BuildContext context) {
@@ -193,25 +259,108 @@ class _AddTaskPageState extends State<AddTaskPage> {
         child: Column(
           children: [
             TextField(
-              controller: _taskController,
+              controller: _taskTitleController,
               decoration: const InputDecoration(
-                labelText: 'Enter Task',
+                labelText: 'Enter Task Title',
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                if (_taskController.text.isNotEmpty) {
-                  // Kirim tugas yang ditambahkan ke halaman sebelumnya
-                  Navigator.pop(context, _taskController.text);
-                }
-              },
-              child: const Text('Add Task'),
+            TextField(
+              controller: _taskDetailsController,
+              decoration: const InputDecoration(
+                labelText: 'Enter Task Details',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              title: const Text('Select Date'),
+              subtitle: Text(
+                _selectedDate == null
+                    ? 'No Date Chosen!'
+                    : DateFormat.yMd().format(_selectedDate!),
+              ),
+              trailing: const Icon(Icons.calendar_today),
+              onTap: _pickDate,
+            ),
+            ListTile(
+              title: const Text('Select Time'),
+              subtitle: Text(
+                _selectedTime == null
+                    ? 'No Time Chosen!'
+                    : _selectedTime!.format(context),
+              ),
+              trailing: const Icon(Icons.access_time),
+              onTap: _pickTime,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    if (_taskTitleController.text.isNotEmpty &&
+                        _taskDetailsController.text.isNotEmpty &&
+                        _selectedDate != null &&
+                        _selectedTime != null) {
+                      Navigator.pop(context, {
+                        'title': _taskTitleController.text,
+                        'details': _taskDetailsController.text,
+                        'date': _selectedDate!,
+                        'time': _selectedTime!,
+                        'isChecked': false, // Status default
+                      });
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                  ),
+                  child: const Text('Add Task'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _pickDate() async {
+    final DateTime? selectedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(DateTime.now().year + 5),
+    );
+
+    if (selectedDate != null) {
+      setState(() {
+        _selectedDate = selectedDate;
+      });
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final TimeOfDay? selectedTime = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime ?? TimeOfDay.now(),
+    );
+
+    if (selectedTime != null) {
+      setState(() {
+        _selectedTime = selectedTime;
+      });
+    }
   }
 }
